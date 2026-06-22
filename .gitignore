@@ -1,0 +1,11 @@
+.superpowers/
+.env
+chatlol.db
+uploads/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+dist/
+.kiro/
+docs/superpowers/

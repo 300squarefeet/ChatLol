@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chatlol"
+version = "0.1.0"
+description = "Chat AI lokal via WiFi dengan file manager"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.115.0",
+    "uvicorn[standard]==0.30.6",
+    "anthropic==0.34.2",
+    "openai==1.51.0",
+    "google-generativeai==0.8.3",
+    "httpx==0.27.2",
+    "python-multipart==0.0.12",
+    "aiofiles==24.1.0",
+    "python-dotenv==1.0.1",
+    "PyPDF2==3.0.1",
+    "Pillow==10.4.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.3", "pytest-asyncio==0.24.0"]
+
+[project.scripts]
+chatlol = "chatlol.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+chatlol = ["static/**/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
