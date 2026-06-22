@@ -4,8 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chatlol"
-version = "0.1.0"
+version = "0.1.1"
 description = "Chat AI lokal via WiFi dengan file manager"
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
 dependencies = [
     "fastapi==0.115.0",
