@@ -182,20 +182,24 @@ function escapeHtml(s) {
 }
 
 function mdInline(s) {
-  // Links [text](http...) — text already escaped; URL restricted to http(s)
+  // Links [text](http...) — text already escaped; URL may contain &amp; from escaping
   s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    (m, t, u) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${t}</a>`);
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-  s = s.replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-  s = s.replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>');
-  s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    (m, t, u) => `<a href="${u.replace(/&amp;/g, '&')}" target="_blank" rel="noopener noreferrer">${t}</a>`);
+  // Bold (** or __)
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  // Italic (* or _) — avoid matching inside words for _
+  s = s.replace(/(?<![*\w])\*(.+?)\*(?![*\w])/g, '<em>$1</em>');
+  s = s.replace(/(?<![_\w])_(.+?)_(?![_\w])/g, '<em>$1</em>');
+  // Strikethrough
+  s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
   return s;
 }
 
 function renderMarkdown(src) {
   if (!src) return '';
   const blocks = [];
+  const inlineCode = [];
   let t = src.replace(/\r\n/g, '\n');
 
   // 1) Extract fenced code blocks BEFORE escaping, then escape their content.
@@ -211,12 +215,14 @@ function renderMarkdown(src) {
     return `\n\u0000${blocks.length - 1}\u0000\n`;
   });
 
-  // 2) Escape everything else.
-  t = escapeHtml(t);
+  // 2) Extract inline code BEFORE escaping (so content doesn't get double-escaped).
+  t = t.replace(/`([^`\n]+)`/g, (m, c) => {
+    inlineCode.push(escapeHtml(c));
+    return `\u0001${inlineCode.length - 1}\u0001`;
+  });
 
-  // 3) Protect inline code spans.
-  const inline = [];
-  t = t.replace(/`([^`\n]+)`/g, (m, c) => { inline.push(c); return `\u0001${inline.length - 1}\u0001`; });
+  // 3) Escape everything else.
+  t = escapeHtml(t);
 
   // 4) Block-level parse.
   const lines = t.split('\n');
@@ -228,7 +234,7 @@ function renderMarkdown(src) {
       listType = null; listItems = [];
     }
   };
-  const flushPara = () => { if (para.length) { html += `<p>${mdInline(para.join(' '))}</p>`; para = []; } };
+  const flushPara = () => { if (para.length) { html += `<p>${mdInline(para.join('\n'))}</p>`; para = []; } };
   const flushBq = () => { if (bq.length) { html += `<blockquote>${bq.map(l => mdInline(l)).join('<br>')}</blockquote>`; bq = []; } };
   const flushAll = () => { flushList(); flushPara(); flushBq(); };
 
@@ -236,14 +242,19 @@ function renderMarkdown(src) {
     const cb = line.match(/^\u0000(\d+)\u0000$/);
     if (cb) { flushAll(); html += blocks[+cb[1]]; continue; }
     if (/^\s*$/.test(line)) { flushAll(); continue; }
+    // Headings (escaped # is still #, so this works fine)
     const h = line.match(/^(#{1,6})\s+(.*)$/);
     if (h) { flushAll(); const lv = h[1].length; html += `<h${lv}>${mdInline(h[2])}</h${lv}>`; continue; }
-    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flushAll(); html += '<hr>'; continue; }
+    // HR: only match raw separator lines (at least 3 of the same char, no other text)
+    if (/^\s*[-*_]{3,}\s*$/.test(line) && !/\S.*\S/.test(line.replace(/[-*_\s]/g, ''))) { flushAll(); html += '<hr>'; continue; }
+    // Blockquote (escaped > = &gt;)
     const q = line.match(/^\s*&gt;\s?(.*)$/);
     if (q) { flushList(); flushPara(); bq.push(q[1]); continue; }
-    const ul = line.match(/^\s*[-*+]\s+(.*)$/);
+    // Unordered list
+    const ul = line.match(/^\s*[-*+]\s+(.+)$/);
     if (ul) { flushPara(); flushBq(); if (listType && listType !== 'ul') flushList(); listType = 'ul'; listItems.push(ul[1]); continue; }
-    const ol = line.match(/^\s*\d+\.\s+(.*)$/);
+    // Ordered list
+    const ol = line.match(/^\s*\d+[.)]\s+(.+)$/);
     if (ol) { flushPara(); flushBq(); if (listType && listType !== 'ol') flushList(); listType = 'ol'; listItems.push(ol[1]); continue; }
     flushList(); flushBq();
     para.push(line.trim());
@@ -252,7 +263,7 @@ function renderMarkdown(src) {
 
   // 5) Restore placeholders.
   html = html.replace(/\u0000(\d+)\u0000/g, (m, i) => blocks[+i] || '');
-  html = html.replace(/\u0001(\d+)\u0001/g, (m, i) => `<code class="md-inline-code">${inline[+i]}</code>`);
+  html = html.replace(/\u0001(\d+)\u0001/g, (m, i) => `<code class="md-inline-code">${inlineCode[+i]}</code>`);
   return html;
 }
 
@@ -507,13 +518,25 @@ messages.addEventListener('click', e => {
   const btn = e.target.closest('.md-code-copy');
   if (!btn) return;
   const codeEl = btn.closest('.md-code-block')?.querySelector('pre code');
-  if (!codeEl || !navigator.clipboard) return;
-  navigator.clipboard.writeText(codeEl.textContent).then(() => {
-    const prev = btn.textContent;
-    btn.textContent = 'Tersalin';
-    setTimeout(() => { btn.textContent = prev; }, 1500);
-  }).catch(() => {});
+  if (!codeEl) return;
+  const text = codeEl.textContent;
+  const done = () => { btn.textContent = 'Tersalin'; setTimeout(() => { btn.textContent = 'Salin'; }, 1500); };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
 });
+
+function fallbackCopy(text, onSuccess) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); onSuccess(); } catch (_) {}
+  document.body.removeChild(ta);
+}
 
 /* ── Start ───────────────────────────────────────────── */
 applyTheme(localStorage.getItem('chatlol-theme') === 'white' ? 'white' : 'g100');
