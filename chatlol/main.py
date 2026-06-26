@@ -189,11 +189,11 @@ async def files_download(path: str):
     target = _safe_path(path)
     if not target.is_file():
         raise HTTPException(status_code=404, detail="File tidak ditemukan")
-    return FileResponse(
-        str(target),
-        filename=target.name,
-        headers={"Content-Disposition": f'attachment; filename="{target.name}"'},
-    )
+    # FileResponse(filename=...) sudah menulis Content-Disposition yang benar,
+    # termasuk encoding RFC 5987 (filename*=utf-8'') untuk nama non-ASCII
+    # (Mandarin, dll). Jangan set header manual — nama non-ASCII tak bisa
+    # di-encode ke latin-1 untuk HTTP header dan akan menyebabkan error.
+    return FileResponse(str(target), filename=target.name)
 
 
 @app.get("/settings", dependencies=[Depends(require_localhost)])

@@ -152,6 +152,18 @@ def test_download_file(client, fm_root):
     assert resp.content == b"report content"
 
 
+def test_download_unicode_filename(client, fm_root):
+    # Nama file non-ASCII (mis. Mandarin) tak boleh bikin error encoding header
+    name = "测试文档.md"
+    (fm_root / name).write_bytes(b"# Judul\nisi")
+    resp = client.get("/files/download", params={"path": name})
+    assert resp.status_code == 200
+    assert resp.content == b"# Judul\nisi"
+    # Content-Disposition memakai encoding RFC 5987 untuk nama non-ASCII
+    cd = resp.headers.get("content-disposition", "")
+    assert "filename*=utf-8''" in cd
+
+
 def test_download_nonexistent(client, fm_root):
     resp = client.get("/files/download", params={"path": "ghost.txt"})
     assert resp.status_code == 404
