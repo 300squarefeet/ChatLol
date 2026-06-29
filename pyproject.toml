@@ -4,23 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chatlol"
-version = "0.1.1"
+version = "0.1.2"
 description = "Chat AI lokal via WiFi dengan file manager"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
+# Pin minimum (>=) agar kompatibel dengan environment modern (mis. Starlette 1.x
+# yang membuang `on_startup` dari Router — butuh fastapi>=0.116 / starlette>=0.46).
 dependencies = [
-    "fastapi==0.115.0",
-    "uvicorn[standard]==0.30.6",
-    "anthropic==0.34.2",
-    "openai==1.51.0",
-    "google-generativeai==0.8.3",
-    "httpx==0.27.2",
-    "python-multipart==0.0.12",
-    "aiofiles==24.1.0",
-    "python-dotenv==1.0.1",
-    "PyPDF2==3.0.1",
-    "Pillow==10.4.0",
+    "fastapi>=0.116.0",
+    "uvicorn[standard]>=0.30.6",
+    "anthropic>=0.34.2",
+    "openai>=1.51.0",
+    "google-generativeai>=0.8.3",
+    "httpx>=0.27.2",
+    "python-multipart>=0.0.12",
+    "aiofiles>=24.1.0",
+    "python-dotenv>=1.0.1",
+    "PyPDF2>=3.0.1",
+    "Pillow>=10.4.0",
 ]
 
 [project.optional-dependencies]
